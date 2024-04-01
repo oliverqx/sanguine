@@ -78,7 +78,7 @@ jobs:
 
 This workflow will run tests for all changed Go modules and their dependencies whenever a pull request is opened or synchronized.
 
-## How It Works
+## How Module Level Dependency Resolution Works
 
 First a change tree is calculated between the ref and the base (as passed in by the user or inferred by the event type) based on the flow described below and [here](https://github.com/dorny/paths-filter/blob/4067d885736b84de7c414f582ac45897079b0a78/README.md#supported-workflows). This is a file tree that contains all the files that have changed between two refs.
 
@@ -126,3 +126,24 @@ sequenceDiagram
   end
   GW->>GW: Continue Until All Modules Visited
 ```
+
+## How Package Level Dependency Resolution Works
+
+First a change tree is calculated between the ref and the base (as passed in by the user or inferred by the event type) based on the flow described below and [here](https://github.com/dorny/paths-filter/blob/4067d885736b84de7c414f582ac45897079b0a78/README.md#supported-workflows). This is a file tree that contains all the files that have changed between two refs.
+
+```mermaid
+graph TB
+    A(Start) --> B{Check triggering workflow}
+    B -- pull request --> C[Calculate a list diff with the GitHub API]
+    B -- push --> D{Check base}
+    D -- Base same as head --> E[Changes detected against most recent commit]
+    D -- Base is a commit sha --> F[Changes detected against the sha]
+    C --> G(Generate Chagned File List)
+    E --> G
+    F --> G
+```
+
+1. Each module in the `go.work` is visited.
+2. All packages inside the module are extracted with their respective files.
+3. With those extracted files, all dependencies for each package are extracted and later filtered so that only local packaged become listed as dependencies.
+4. Using the CT we anazlyze each module's package dependency tree and if any changes are detected, the module is added to the list of changed modules. If `include_dependencies` is on and the module has a dependency that is also in the `go.work`, the dependency is added to the list of changed modules as well. This process is repeated until all modules in the `go.work` have been visited.
